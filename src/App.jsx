@@ -21,14 +21,18 @@ function getIcecastMetadataUrl(stationUrl) {
   }
 }
 
-async function getSongYear(artist, track) {
+async function getSongYear(artist, track, logFn) {
   const query = `recording:${track} AND artist:${artist}`;
   const url = `https://musicbrainz.org/ws/2/recording/?query=${encodeURIComponent(query)}&fmt=json`;
+  if(logFn) {
+    logFn(` Fetching MusicBrainz URL: ${url}`);
+  }
   try {
     const res = await fetch(url, { headers: { "User-Agent": "RadioYearScanner/1.0 (example@example.com)" } });
     if (!res.ok) return null;
     const data = await res.json();
-    const flatReleases = data.recordings?.flatMap(r => r.releases || []);
+    const filteredRecordings = data.recordings?.filter(r => r.title === track) || [];
+    const flatReleases = filteredRecordings.flatMap(r => r.releases || []);
     const releasesWithDate = flatReleases?.filter(r => r.date);
     releasesWithDate?.sort((a, b) => a.date.localeCompare(b.date));
     const date = releasesWithDate?.[0]?.date;
@@ -40,7 +44,7 @@ async function getSongYear(artist, track) {
 }
 
 export default function App() {
-  const IS_PROD = Boolean(import.meta.env && import.meta.env.PROD);
+  const IS_PROD = true;
   const [logs, setLogs] = useState([]);
   const [running, setRunning] = useState(false);
   const [match, setMatch] = useState(null); // match object but hide year until guess
@@ -132,7 +136,7 @@ export default function App() {
       if (!artist || !title) continue;
 
       log(` Looking up year for: ${artist} - ${title}...`);
-      const year = await getSongYear(artist, title);
+      const year = await getSongYear(artist, title, log);
       cache.set(normalized, year);
       log(` Found year: ${year || "unknown"}`);
       if (!year) continue;
