@@ -57,13 +57,13 @@ async function main() {
             console.log(` Processing song title: ${songTitle}...`);
 
             const normalized = songTitle.trim();
-            // if (CACHE.has(normalized)) {
-            //     console.log(` Found in cache: ${CACHE.get(normalized) || "unknown"}`);
-            //     if (CACHE.get(normalized) === TARGET_YEAR) {
-            //         console.log(`✅ ${s.name}: ${songTitle} (${TARGET_YEAR})`);
-            //     }
-            //     continue;
-            // }
+            if (CACHE.has(normalized)) {
+                console.log(` Found in cache: ${CACHE.get(normalized) || "unknown"}`);
+                if (CACHE.get(normalized) === TARGET_YEAR) {
+                    console.log(`✅ ${s.name}: ${songTitle} (${TARGET_YEAR})`);
+                }
+                continue;
+            }
 
             const { artist, title } = splitSongTitle(normalized);
             if (!artist || !title) continue;
