@@ -2,14 +2,23 @@
   "name": "game-radio-guesser",
   "version": "1.0.0",
   "description": "Small website that let's you guess a song's release year of a song currently playing on a radio station.",
+  "type": "module",
   "main": "index.js",
   "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "",
   "license": "ISC",
   "dependencies": {
     "node-fetch": "^3.3.2",
-    "play-sound": "^1.1.6"
+    "play-sound": "^1.1.6",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "vite": "^5.0.0"
   }
 }
