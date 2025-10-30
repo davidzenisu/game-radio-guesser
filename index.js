@@ -91,7 +91,10 @@ async function main() {
             console.log(`🎯 Match found! ${s.name}: ${artist} - ${title} (${year})`);
             stats.totalMatches++;
 
-            result.stream_url = s.url;
+            result.urls = {
+                stream: s.url,
+                metadata: getIcecastMetadataUrl(s.url),
+            };
             result.song = { artist, title, year };
 
             // stop after first match
@@ -114,14 +117,10 @@ async function main() {
     console.log(`Found song: ${JSON.stringify(result, null, 2)}`);
     console.log("\n=== Scanner finished ===");
 
-    console.log("Stream song...");
-
     // const play = player();
     // play.play(result.stream_url, function (err) {
     //     if (err) console.error("Error playing stream:", err);
     // });
-
-
 }
 
 /* --- Helpers --- */
@@ -162,8 +161,7 @@ async function getCurrentSong(station) {
     // Try station-specific status JSON (common on Icecast)
     try {
         console.log(` Trying to receive metadata from station ${station.url}...`);
-        const baseUrl = new URL(station.url);
-        baseUrl.pathname = "/status-json.xsl";
+        const baseUrl = getIcecastMetadataUrl(station.url);
         console.log(` Trying to fetch station status from ${baseUrl.toString()}...`);
         const res = await fetch(baseUrl.toString(), { timeout: 4000 });
         if (res.ok) {
@@ -178,6 +176,16 @@ async function getCurrentSong(station) {
     }
 
     return null;
+}
+
+function getIcecastMetadataUrl(stationUrl) {
+    try {
+        const url = new URL(stationUrl);
+        url.pathname = "/status-json.xsl";
+        return url.toString();
+    } catch {
+        return null;
+    }
 }
 
 function splitSongTitle(fullTitle) {
