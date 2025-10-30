@@ -1,0 +1,15 @@
+{
+  "name": "game-radio-guesser",
+  "version": "1.0.0",
+  "description": "Small website that let's you guess a song's release year of a song currently playing on a radio station.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "node-fetch": "^3.3.2",
+    "play-sound": "^1.1.6"
+  }
+}
