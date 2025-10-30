@@ -44,7 +44,7 @@ async function getSongYear(artist, track, logFn) {
 }
 
 export default function App() {
-  const IS_PROD = true;
+  const IS_PROD = Boolean(import.meta.env && import.meta.env.PROD);
   const [logs, setLogs] = useState([]);
   const [running, setRunning] = useState(false);
   const [match, setMatch] = useState(null); // match object but hide year until guess
