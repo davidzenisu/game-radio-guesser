@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 
 const TARGET_DECADES = [1950, 1960, 1970, 1980, 1990, 2000, 2010, 2020];
-const STATION_LIMIT = 60;
+const STATION_LIMIT = 100;
 
 function splitSongTitle(fullTitle) {
   const parts = fullTitle.split(" - ");
@@ -22,8 +22,8 @@ function getIcecastMetadataUrl(stationUrl) {
 }
 
 async function getSongYear(artist, track, logFn) {
-  const query = `recording:"${track}" AND artist:"${artist}"`;
-  const url = `https://musicbrainz.org/ws/2/recording/?query=${encodeURIComponent(query)}&fmt=json&inc=`;
+  const query = `recording:${track} AND artist:${artist} AND status:official AND primarytype:album`;
+  const url = `https://musicbrainz.org/ws/2/recording/?query=${encodeURIComponent(query)}&fmt=json&inc=releases&limit=100`;
   if(logFn) {
     logFn(` Fetching MusicBrainz URL: ${url}`);
   }
@@ -31,7 +31,8 @@ async function getSongYear(artist, track, logFn) {
     const res = await fetch(url, { headers: { "User-Agent": "RadioYearScanner/1.0 (example@example.com)" } });
     if (!res.ok) return null;
     const data = await res.json();
-    const filteredRecordings = data.recordings?.filter(r => r.title === track) || [];
+    const filteredRecordings = data.recordings;
+    logFn(`  MusicBrainz returned ${filteredRecordings.length} matching recordings.`);
     const flatReleases = filteredRecordings.flatMap(r => r.releases || []);
     const releasesWithDate = flatReleases?.filter(r => r.date);
     releasesWithDate?.sort((a, b) => a.date.localeCompare(b.date));
