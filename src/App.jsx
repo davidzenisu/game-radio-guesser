@@ -31,7 +31,7 @@ async function getSongYear(artist, track, logFn) {
     const res = await fetch(url, { headers: { "User-Agent": "RadioYearScanner/1.0 (example@example.com)" } });
     if (!res.ok) return null;
     const data = await res.json();
-    const filteredRecordings = data.recordings;
+    const filteredRecordings = data.recordings?.filter(r => r.score >= 75) || [];
     logFn(`  MusicBrainz returned ${filteredRecordings.length} matching recordings.`);
     const flatReleases = filteredRecordings.flatMap(r => r.releases || []);
     const releasesWithDate = flatReleases?.filter(r => r.date);
