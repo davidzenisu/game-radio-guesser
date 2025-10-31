@@ -22,8 +22,8 @@ function getIcecastMetadataUrl(stationUrl) {
 }
 
 async function getSongYear(artist, track, logFn) {
-  const query = `recording:${track} AND artist:${artist}`;
-  const url = `https://musicbrainz.org/ws/2/recording/?query=${encodeURIComponent(query)}&fmt=json`;
+  const query = `recording:"${track}" AND artist:"${artist}"`;
+  const url = `https://musicbrainz.org/ws/2/recording/?query=${encodeURIComponent(query)}&fmt=json&inc=`;
   if(logFn) {
     logFn(` Fetching MusicBrainz URL: ${url}`);
   }
@@ -328,7 +328,7 @@ export default function App() {
 
             {!showAnswer ? (
               <form onSubmit={submitGuess} style={{marginTop:8}}>
-                <label>Guess the release year (e.g. 1975): </label>
+                <label>Guess the release year: </label>
                 <input value={guess} onChange={e => setGuess(e.target.value)} placeholder="YYYY" style={{marginLeft:8}} />
                 <button type="submit" style={{marginLeft:8}}>Submit Guess</button>
                 <button type="button" onClick={revealAnswer} style={{marginLeft:8}}>Reveal</button>
