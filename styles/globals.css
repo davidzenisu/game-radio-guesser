@@ -1,0 +1,13 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root{
+  --radius: 0.5rem;
+}
+
+.btn{ @apply inline-flex items-center gap-2 rounded px-3 py-1.5 text-sm font-medium }
+.btn-primary{ @apply bg-sky-600 text-white hover:bg-sky-700 }
+.btn-ghost{ @apply bg-transparent text-slate-700 border border-transparent }
+
+.card{ @apply bg-white p-4 rounded-lg shadow-sm }
