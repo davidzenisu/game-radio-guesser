@@ -128,6 +128,7 @@ async function getSongYear(artist, track, logFn) {
 export default function Home() {
   const IS_PROD = process.env.NODE_ENV === 'production'
   const [logs, setLogs] = useState([])
+  const [gameStarted, setGameStarted] = useState(false)
   const [running, setRunning] = useState(false)
   const [match, setMatch] = useState(null)
   const matchRef = useRef(null)
@@ -181,6 +182,7 @@ export default function Home() {
     setShowAnswer(false)
     setIsPlaying(false)
     setLastResult(null)
+    setGameStarted(false)
   }
   // Results rendering is handled later (after all hooks) to avoid changing
   // the hooks call order between renders.
@@ -191,7 +193,7 @@ export default function Home() {
   const setMatchAndRef = (v) => { matchRef.current = v; setMatch(v) }
 
   async function runScan() {
-    setLogs([]); setCollected([]); setMatchAndRef(null); setGuess(''); setRunning(true); setStationsChecked(0); setStationsTotal(0)
+    setLogs([]); setCollected([]); setMatchAndRef(null); setGuess(''); setRunning(true); setStationsChecked(0); setStationsTotal(0); setGameStarted(true);
     log(`Searching for the first song that returns a release year (excluding previously picked songs/decades)...`)
     const host = 'https://all.api.radio-browser.info'
     const url = `${host}/json/stations/search?order=clickcount&reverse=true&tag=rock&limit=60&has_extended_info=true`
@@ -418,10 +420,11 @@ export default function Home() {
         <header className="mb-6">
           <h1 className="text-2xl font-semibold">Game Radio Guesser</h1>
           <p className="text-sm text-gray-600">Find a song and guess its release decade.</p>
+          {!gameStarted && <Button className="mt-4" onClick={runScan} disabled={running}>Start Game</Button>}
         </header>
 
         <div className="flex gap-4 items-center mb-4">
-          <Button onClick={runScan} disabled={running || !!match}>{running ? 'Scanning...' : 'Start Round'}</Button>
+          {running && <div>Scanning...</div>}
           <div className="ml-auto text-sm text-gray-700">Score: <strong>{score.points}</strong> · Rounds: {score.rounds}/{MAX_ROUNDS}
           </div>
         </div>
