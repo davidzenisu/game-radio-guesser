@@ -216,6 +216,17 @@ export default function Home() {
     try { runScan() } catch (_) { }
   }
 
+  // Skip the current round (e.g. an ad). Do NOT increment rounds.
+  function skipRound() {
+    try { audioRef.current?.pause() } catch (_) { }
+    log('Round skipped by user (Ads :()')
+    setMatchAndRef(null)
+    setGuess('')
+    setShowAnswer(false)
+    setIsPlaying(false)
+    try { runScan() } catch (_) { }
+  }
+
   function resetScore() { setScore({ points: 0, rounds: 0, correct: 0 }); }
 
   // when a match appears, try to autoplay the stream muted (browsers often allow muted autoplay)
@@ -272,6 +283,7 @@ export default function Home() {
                 <Button onClick={() => audioRef.current?.play()?.catch(e => log('play blocked'))}>{isPlaying ? 'Playing' : 'Play'}</Button>
                 <Button variant="ghost" onClick={() => { try { audioRef.current?.pause() } catch (_) { } }}>Pause</Button>
                 <Button variant="ghost" onClick={() => { try { audioRef.current.muted = false; audioRef.current.play()?.catch(() => { }); setAutoplayBlocked(false) } catch (_) { } }}>Unmute</Button>
+                <Button className="bg-rose-600 text-white hover:bg-rose-700" onClick={skipRound} aria-label="Skip this round">Ads :(</Button>
               </div>
 
               {autoplayBlocked && (
@@ -306,8 +318,8 @@ export default function Home() {
                   </div>
                 </div>
               ) : (
-                <div className="mt-4">
-                  <p>Answer: <strong>{match.artist} — {match.track} — {match.year}</strong> ({Math.floor(parseInt(match.year) / 10) * 10}s)</p>
+                <div className="mt-4 flex items-center gap-3">
+                  <p className="mr-4">Answer: <strong>{match.artist} — {match.track} — {match.year}</strong> ({Math.floor(parseInt(match.year) / 10) * 10}s)</p>
                   <Button onClick={nextRound}>Next Round</Button>
                 </div>
               )}
