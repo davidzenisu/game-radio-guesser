@@ -166,7 +166,7 @@ export default function Home() {
     if (!match) return
     setShowAnswer(true)
     setScore(s => ({ ...s, rounds: s.rounds + 1 }))
-    log(`Answer revealed: ${match.year}`)
+    log(`Answer revealed: ${match.artist} - ${match.track} (${match.year})`)
   }
 
   function nextRound() {
@@ -230,7 +230,6 @@ export default function Home() {
         {match && (
           <Card>
             <h2 className="text-lg font-medium">Round</h2>
-            <p className="mt-2"><strong>{match.artist}</strong> — {match.track}</p>
             <div className="mt-4">
               <audio ref={audioRef} src={match.station?.url} preload="none" controls style={{ display: 'none' }} />
               <div className="flex gap-3">
@@ -267,7 +266,7 @@ export default function Home() {
                 </form>
               ) : (
                 <div className="mt-4">
-                  <p>Answer: <strong>{match.year}</strong> ({Math.floor(parseInt(match.year) / 10) * 10}s)</p>
+                  <p>Answer: <strong>{match.artist} — {match.track} — {match.year}</strong> ({Math.floor(parseInt(match.year) / 10) * 10}s)</p>
                   <Button onClick={nextRound}>Next Round</Button>
                 </div>
               )}
