@@ -1,21 +1,24 @@
-# game-radio-guesser
-Small website that let's you guess a song's release decade for songs currently playing on radio stations.
+# Game Radio Guesser (Next.js)
 
-This repository was refactored into a small React app (Vite) that uses the RadioBrowser and MusicBrainz public APIs to scan stations and try to find songs from a randomly selected decade.
+Small website that lets you guess a song's release decade for songs currently playing on radio stations.
 
-Quick start
+This repository has been refactored into a Next.js app and uses the RadioBrowser and MusicBrainz public APIs.
 
-1. Install dependencies:
+Quick start (after cloning):
 
 ```bash
 npm install
-```
-
-2. Run dev server:
-
-```bash
 npm run dev
 ```
 
-Open http://localhost:5173 in your browser.
+Open http://localhost:3000 in your browser.
+
+Build for production:
+
+```bash
+npm run build
+npm run start
+```
+
+Tailwind CSS is configured (see `tailwind.config.cjs` and `postcss.config.cjs`). The UI uses simple shadcn-style components in `/components` (Button, Card, Spinner).
 
