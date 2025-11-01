@@ -46,6 +46,22 @@ function PlayingIndicator({ label = 'Playing' }) {
   )
 }
 
+// Small animated badge for showing whether the last guess was correct
+function ResultBadge({ correct }) {
+  return (
+    <span className={`result-badge ${correct ? 'ok' : 'bad'}`} aria-hidden>
+      {correct ? '✅' : '❌'}
+      <style jsx>{`
+        .result-badge{ display:inline-flex; align-items:center; justify-content:center; width:48px; height:48px; border-radius:9999px; font-size:20px }
+        .result-badge.ok{ background: rgba(16,185,129,0.12); color:#059669; animation: pop 600ms ease }
+        .result-badge.bad{ background: rgba(239,68,68,0.08); color:#dc2626; animation: shake 700ms ease }
+        @keyframes pop { 0%{ transform: scale(0.4); opacity:0 } 60%{ transform: scale(1.08); opacity:1 } 100%{ transform: scale(1) } }
+        @keyframes shake { 0%{ transform: translateX(0) } 25%{ transform: translateX(-6px) } 50%{ transform: translateX(6px) } 75%{ transform: translateX(-4px) } 100%{ transform: translateX(0) } }
+      `}</style>
+    </span>
+  )
+}
+
 function splitSongTitle(fullTitle) {
   const parts = fullTitle.split(' - ')
   if (parts.length >= 2) return { artist: parts[0].trim(), title: parts.slice(1).join(' - ').trim() }
@@ -136,6 +152,12 @@ export default function Home() {
   const lastDecadeRef = useRef(null)
 
   const log = (t) => setLogs(l => [...l, String(t)])
+  // Last guess result shown after revealing an answer.
+  // { correct: boolean, guessed: number|null, actual: number }
+  const [lastResult, setLastResult] = useState(null)
+  // Per-round results for the session, shown on the Results screen.
+  // Each entry: { artist, track, year, actual, guessed, correct }
+  const [roundResults, setRoundResults] = useState([])
 
   // When we've reached the max rounds, pause audio and clear any active match
   useEffect(() => {
@@ -158,6 +180,7 @@ export default function Home() {
     setGuess('')
     setShowAnswer(false)
     setIsPlaying(false)
+    setLastResult(null)
   }
   // Results rendering is handled later (after all hooks) to avoid changing
   // the hooks call order between renders.
@@ -257,6 +280,9 @@ export default function Home() {
     const correct = dec === Math.floor(parseInt(match.year) / 10) * 10
     setScore(s => ({ points: s.points + (correct ? 1 : 0), rounds: s.rounds + 1, correct: s.correct + (correct ? 1 : 0) }))
     log(`Player guessed ${g} → ${dec}s — ${correct ? 'correct' : 'wrong'}`)
+    const entry = { artist: match.artist, track: match.track, year: match.year, actual: Math.floor(parseInt(match.year) / 10) * 10, guessed: dec, correct }
+    setLastResult(entry)
+    setRoundResults(r => [...r, entry])
     setShowAnswer(true)
   }
 
@@ -266,6 +292,9 @@ export default function Home() {
     const correct = decade === Math.floor(parseInt(match.year) / 10) * 10
     setScore(s => ({ points: s.points + (correct ? 1 : 0), rounds: s.rounds + 1, correct: s.correct + (correct ? 1 : 0) }))
     log(`Player guessed ${decade}s — ${correct ? 'correct' : 'wrong'}`)
+    const entry = { artist: match.artist, track: match.track, year: match.year, actual: Math.floor(parseInt(match.year) / 10) * 10, guessed: decade, correct }
+    setLastResult(entry)
+    setRoundResults(r => [...r, entry])
     setShowAnswer(true)
   }
 
@@ -273,6 +302,11 @@ export default function Home() {
     if (!match) return
     setShowAnswer(true)
     setScore(s => ({ ...s, rounds: s.rounds + 1 }))
+    // mark that no guess was made for this round
+    const actualDec = Math.floor(parseInt(match.year) / 10) * 10
+    const entry = { artist: match.artist, track: match.track, year: match.year, actual: actualDec, guessed: null, correct: false }
+    setLastResult(entry)
+    setRoundResults(r => [...r, entry])
     log(`Answer revealed: ${match.artist} - ${match.track} (${match.year})`)
   }
 
@@ -282,6 +316,7 @@ export default function Home() {
     setGuess('')
     setShowAnswer(false)
     setIsPlaying(false)
+    setLastResult(null)
     // now it's safe to start the next scan immediately because matchRef
     // was cleared synchronously above
     try { runScan() } catch (_) { }
@@ -295,6 +330,7 @@ export default function Home() {
     setGuess('')
     setShowAnswer(false)
     setIsPlaying(false)
+    setLastResult(null)
     try { runScan() } catch (_) { }
   }
 
@@ -360,8 +396,7 @@ export default function Home() {
           <Card>
             <h2 className="text-2xl font-semibold">Results</h2>
             <p className="mt-3">Rounds: <strong>{score.rounds}/{MAX_ROUNDS}</strong></p>
-            <p className="mt-1">Points: <strong>{score.points}</strong></p>
-            <p className="mt-1">Correct: <strong>{score.correct}</strong> ({accuracy}%)</p>
+            <p className="mt-1">Points: <strong>{score.points}</strong> ({accuracy}%)</p>
             <div className="mt-4">
               <Button onClick={restartGame}>Play Again</Button>
             </div>
@@ -387,8 +422,7 @@ export default function Home() {
 
         <div className="flex gap-4 items-center mb-4">
           <Button onClick={runScan} disabled={running || !!match}>{running ? 'Scanning...' : 'Start Round'}</Button>
-          <div className="ml-auto text-sm text-gray-700">Score: <strong>{score.points}</strong> · Rounds: {score.rounds}/{MAX_ROUNDS} · Correct: {score.correct}
-            <Button className="ml-3" variant="ghost" onClick={resetScore}>Reset</Button>
+          <div className="ml-auto text-sm text-gray-700">Score: <strong>{score.points}</strong> · Rounds: {score.rounds}/{MAX_ROUNDS}
           </div>
         </div>
 
@@ -436,8 +470,29 @@ export default function Home() {
                     </div>
                   </div>
                 ) : (
-                  <div className="mt-4 flex items-center gap-3">
-                    <p className="mr-4">Answer: <strong>{match.artist} — {match.track} — {match.year}</strong> ({Math.floor(parseInt(match.year) / 10) * 10}s)</p>
+                  <div className="mt-4 flex flex-col items-center gap-3">
+                    <div><strong>🎤: {match.artist}</strong></div>
+                    <div><strong>🎶: {match.track}</strong></div>
+                    <div><strong>📅: {match.year}</strong> ({Math.floor(parseInt(match.year) / 10) * 10}s)</div>
+                    {lastResult && (
+                      <div className="mt-2">
+                        {lastResult.guessed === null ? (
+                          <div className="text-yellow-700">No guess was made. Correct decade: <strong>{lastResult.actual}s</strong></div>
+                        ) : lastResult.correct ? (
+                          <div className="flex flex-col items-center gap-2">
+                            <ResultBadge correct={true} />
+                            <div className="text-emerald-600"><strong>Correct!</strong></div>
+                          </div>
+                        ) : (
+                          <div className="flex flex-col items-center gap-2 text-rose-600">
+                            <ResultBadge correct={false} />
+                            <div><strong>Wrong!</strong></div>
+                            <div>Your guess: <strong>{lastResult.guessed}s</strong></div>
+                            <div>Correct answer: <strong>{lastResult.actual}s</strong></div>
+                          </div>
+                        )}
+                      </div>
+                    )}
                     <Button onClick={nextRound}>Next Round</Button>
                   </div>
                 )}
