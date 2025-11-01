@@ -49,6 +49,7 @@ export default function Home() {
   const [logs, setLogs] = useState([])
   const [running, setRunning] = useState(false)
   const [match, setMatch] = useState(null)
+  const matchRef = useRef(null)
   const [collected, setCollected] = useState([])
   const [stationsTotal, setStationsTotal] = useState(0)
   const [stationsChecked, setStationsChecked] = useState(0)
@@ -73,8 +74,13 @@ export default function Home() {
 
   const log = (t) => setLogs(l => [...l, String(t)])
 
+  // helper to keep a mutable ref in sync with match state so long-running
+  // async loops can read the current value without depending on React's
+  // asynchronous state updates.
+  const setMatchAndRef = (v) => { matchRef.current = v; setMatch(v) }
+
   async function runScan() {
-    setLogs([]); setCollected([]); setMatch(null); setGuess(''); setRunning(true); setStationsChecked(0); setStationsTotal(0)
+    setLogs([]); setCollected([]); setMatchAndRef(null); setGuess(''); setRunning(true); setStationsChecked(0); setStationsTotal(0)
     const decade = TARGET_DECADES[Math.floor(Math.random() * TARGET_DECADES.length)]
     log(`Searching for ${decade}s songs...`)
     const host = 'https://all.api.radio-browser.info'
@@ -90,7 +96,8 @@ export default function Home() {
 
     const cache = new Map()
     for (const s of stations) {
-      if (match) break
+      // read the mutable ref instead of React state to avoid staleness
+      if (matchRef.current) break
       setStationsChecked(c => c + 1)
       log(`Checking station: ${s.name || s.title || s.url}`)
       let title = (s.title && s.title.includes(' - ')) ? s.title : null
@@ -133,7 +140,7 @@ export default function Home() {
       const dec = Math.floor(yr / 10) * 10
       if (dec === decade) {
         log(`Match found: ${artist} - ${track} (${year}) at station ${s.name || s.url}`)
-        setMatch({ artist, track, year, station: s });
+        setMatchAndRef({ artist, track, year, station: s });
         break
       }
     }
@@ -163,12 +170,14 @@ export default function Home() {
   }
 
   function nextRound() {
-    try { audioRef.current?.pause() } catch (_) { }
-    setMatch(null)
-    setGuess('')
-    setShowAnswer(false)
-    setIsPlaying(false)
-    runScan()
+  try { audioRef.current?.pause() } catch (_) { }
+  setMatchAndRef(null)
+  setGuess('')
+  setShowAnswer(false)
+  setIsPlaying(false)
+  // now it's safe to start the next scan immediately because matchRef
+  // was cleared synchronously above
+  try { runScan() } catch (_) { }
   }
 
   function resetScore() { setScore({ points: 0, rounds: 0, correct: 0 }); }
