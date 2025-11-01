@@ -6,6 +6,18 @@ import { Card } from '../components/Card'
 import { Spinner } from '../components/Spinner'
 
 const TARGET_DECADES = [1950, 1960, 1970, 1980, 1990, 2000, 2010, 2020]
+// Map each decade to a distinct Tailwind color set. We apply these classes
+// to the decade Buttons so each decade is visually distinct.
+const DECADE_COLORS = {
+  1950: 'bg-red-400 text-white hover:bg-red-600',
+  1960: 'bg-orange-400 text-white hover:bg-orange-600',
+  1970: 'bg-amber-400 text-white hover:bg-amber-600',
+  1980: 'bg-lime-400 text-white hover:bg-lime-600',
+  1990: 'bg-emerald-400 text-white hover:bg-emerald-600',
+  2000: 'bg-sky-400 text-white hover:bg-sky-600',
+  2010: 'bg-indigo-400 text-white hover:bg-indigo-600',
+  2020: 'bg-violet-400 text-white hover:bg-violet-600',
+}
 
 function splitSongTitle(fullTitle) {
   const parts = fullTitle.split(' - ')
@@ -275,15 +287,14 @@ export default function Home() {
         {running && <Card><div className="flex items-center gap-3"><Spinner /> Searching stations... ({stationsChecked}/{stationsTotal})</div></Card>}
 
         {match && (
+          <div className="flex flex-col gap-6 mt-6">
           <Card>
-            <h2 className="text-lg font-medium">Round</h2>
+            <h2 className="text-lg font-medium">Controls</h2>
             <div className="mt-4">
               <audio ref={audioRef} src={match.station?.url} preload="none" controls style={{ display: 'none' }} />
               <div className="flex gap-3">
-                <Button onClick={() => audioRef.current?.play()?.catch(e => log('play blocked'))}>{isPlaying ? 'Playing' : 'Play'}</Button>
-                <Button variant="ghost" onClick={() => { try { audioRef.current?.pause() } catch (_) { } }}>Pause</Button>
-                <Button variant="ghost" onClick={() => { try { audioRef.current.muted = false; audioRef.current.play()?.catch(() => { }); setAutoplayBlocked(false) } catch (_) { } }}>Unmute</Button>
-                <Button className="bg-rose-600 text-white hover:bg-rose-700" onClick={skipRound} aria-label="Skip this round">Ads :(</Button>
+                <Button onClick={() => { try { audioRef.current.muted = false; audioRef.current.play()?.catch(() => { }); setAutoplayBlocked(false) } catch (_) { } }}>Unmute</Button>
+                <Button className="bg-rose-600 text-white hover:bg-rose-700" onClick={skipRound} aria-label="Skip this round">Song's over :(</Button>
               </div>
 
               {autoplayBlocked && (
@@ -305,16 +316,29 @@ export default function Home() {
                   </div>
                 </div>
               )}
-
+            </div>
+          </Card>
+          <Card>
+            <h2 className="text-lg font-medium">Answer</h2>
+            <div className="mt-4">
               {!showAnswer ? (
                 <div className="mt-4 flex flex-col gap-3">
                   <div className="flex flex-wrap gap-2">
-                    {TARGET_DECADES.map((d) => (
-                      <Button key={d} onClick={() => handleDecadeGuess(d)}>{d}s</Button>
-                    ))}
-                  </div>
-                  <div>
-                    <Button type="button" variant="ghost" onClick={revealAnswer}>Reveal</Button>
+                    {TARGET_DECADES.map((d) => {
+                      const colorClass = DECADE_COLORS[d] || 'bg-sky-600 text-white hover:bg-sky-700'
+                      // When the answer is revealed, visually disable the buttons.
+                      const disabledClass = showAnswer ? 'opacity-60 cursor-not-allowed' : ''
+                      return (
+                        <Button
+                          key={d}
+                          onClick={() => handleDecadeGuess(d)}
+                          className={`${colorClass} ${disabledClass}`}
+                          disabled={showAnswer}
+                        >
+                          {d}s
+                        </Button>
+                      )
+                    })}
                   </div>
                 </div>
               ) : (
@@ -325,6 +349,7 @@ export default function Home() {
               )}
             </div>
           </Card>
+          </div>
         )}
         {!IS_PROD && (
           <section className="mt-6">
