@@ -189,6 +189,15 @@ export default function Home() {
     setShowAnswer(true)
   }
 
+  // handle guesses when the user selects a decade button
+  function handleDecadeGuess(decade) {
+    if (!match) return
+    const correct = decade === Math.floor(parseInt(match.year) / 10) * 10
+    setScore(s => ({ points: s.points + (correct ? 1 : 0), rounds: s.rounds + 1, correct: s.correct + (correct ? 1 : 0) }))
+    log(`Player guessed ${decade}s — ${correct ? 'correct' : 'wrong'}`)
+    setShowAnswer(true)
+  }
+
   function revealAnswer() {
     if (!match) return
     setShowAnswer(true)
@@ -286,11 +295,16 @@ export default function Home() {
               )}
 
               {!showAnswer ? (
-                <form onSubmit={submitGuessWithLog} className="mt-4 flex gap-2 items-center">
-                  <input className="border px-2 py-1 rounded" placeholder="YYYY" value={guess} onChange={e => setGuess(e.target.value)} />
-                  <Button type="submit">Submit Guess</Button>
-                  <Button type="button" variant="ghost" onClick={revealAnswer}>Reveal</Button>
-                </form>
+                <div className="mt-4 flex flex-col gap-3">
+                  <div className="flex flex-wrap gap-2">
+                    {TARGET_DECADES.map((d) => (
+                      <Button key={d} onClick={() => handleDecadeGuess(d)}>{d}s</Button>
+                    ))}
+                  </div>
+                  <div>
+                    <Button type="button" variant="ghost" onClick={revealAnswer}>Reveal</Button>
+                  </div>
+                </div>
               ) : (
                 <div className="mt-4">
                   <p>Answer: <strong>{match.artist} — {match.track} — {match.year}</strong> ({Math.floor(parseInt(match.year) / 10) * 10}s)</p>
