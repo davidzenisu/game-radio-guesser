@@ -107,6 +107,12 @@ export default function Home() {
   const [autoplayBlocked, setAutoplayBlocked] = useState(false)
   const [showAnswer, setShowAnswer] = useState(false)
   const [showUnmutePrompt, setShowUnmutePrompt] = useState(false)
+  // In-memory cache of songs we've already picked: key is "Artist - Track"
+  // Value: { artist, track, year, decade }
+  const songCacheRef = useRef(new Map())
+  // Remember only the decade used in the very last round so we avoid
+  // picking the same decade twice in a row.
+  const lastDecadeRef = useRef(null)
 
   useEffect(() => { try { localStorage.setItem('grg-score', JSON.stringify(score)) } catch (_) { } }, [score])
 
@@ -119,8 +125,7 @@ export default function Home() {
 
   async function runScan() {
     setLogs([]); setCollected([]); setMatchAndRef(null); setGuess(''); setRunning(true); setStationsChecked(0); setStationsTotal(0)
-    const decade = TARGET_DECADES[Math.floor(Math.random() * TARGET_DECADES.length)]
-    log(`Searching for ${decade}s songs...`)
+    log(`Searching for the first song that returns a release year (excluding previously picked songs/decades)...`)
     const host = 'https://all.api.radio-browser.info'
     const url = `${host}/json/stations/search?order=clickcount&reverse=true&tag=rock&limit=60&has_extended_info=true`
     log(`Fetching stations from: ${url}`)
@@ -128,11 +133,13 @@ export default function Home() {
     try {
       const r = await fetch(url)
       stations = await r.json()
+      // Randomize the station order so we don't always pick the same high-clickcount stations
+      function shuffle(arr) { for (let i = arr.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [arr[i], arr[j]] = [arr[j], arr[i]] } return arr }
+      stations = shuffle(stations)
       setStationsTotal(stations.length)
       log(`Loaded ${stations.length} stations.`)
     } catch (e) { log(`Failed to load stations: ${e?.message || e}`); setRunning(false); return }
-
-    const cache = new Map()
+    const seenThisScan = new Set()
     for (const s of stations) {
       // read the mutable ref instead of React state to avoid staleness
       if (matchRef.current) break
@@ -166,22 +173,30 @@ export default function Home() {
       log(` Current song: ${title || '(no song info)'}`)
       if (!title) continue
       const normalized = title.trim()
-      if (cache.has(normalized)) { log(` Already seen "${normalized}", skipping`); continue }
+      if (seenThisScan.has(normalized)) { log(` Already seen "${normalized}" in this scan, skipping`); continue }
+      if (songCacheRef.current.has(normalized)) { log(` Song "${normalized}" already picked in a previous round, skipping`); continue }
       const { artist, title: track } = splitSongTitle(title)
       if (!artist || !track) { log(` Could not split title into artist/title: "${title}"`); continue }
       log(` Looking up year for: ${artist} - ${track} ...`)
       const year = await getSongYear(artist, track, log)
-      cache.set(normalized, year)
+      seenThisScan.add(normalized)
       log(` Found year for ${artist} - ${track}: ${year || 'unknown'}`)
       if (!year) continue
       setCollected(c => [...c, `${artist} - ${track} (${year})`])
       const yr = parseInt(year)
+      if (Number.isNaN(yr)) continue
       const dec = Math.floor(yr / 10) * 10
-      if (dec === decade) {
-        log(`Match found: ${artist} - ${track} (${year}) at station ${s.name || s.url}`)
-        setMatchAndRef({ artist, track, year, station: s });
-        break
-      }
+  // If the last round used this same decade, skip it so we don't repeat
+  if (lastDecadeRef.current === dec) { log(` Decade ${dec}s was the last round's decade; skipping to avoid repeat.`); continue }
+
+  // Store in the in-memory cache and choose this as the match
+  const entry = { artist, track, year, decade: dec }
+  songCacheRef.current.set(normalized, entry)
+  // Remember this decade as the last used decade for the next round
+  lastDecadeRef.current = dec
+  log(`Match found: ${artist} - ${track} (${year}) at station ${s.name || s.url} — storing in cache and setting last-decade to ${dec}s`)
+      setMatchAndRef({ artist, track, year, station: s })
+      break
     }
     log('Scan complete.')
     setRunning(false)
@@ -294,7 +309,7 @@ export default function Home() {
               <audio ref={audioRef} src={match.station?.url} preload="none" controls style={{ display: 'none' }} />
               <div className="flex gap-3">
                 <Button onClick={() => { try { audioRef.current.muted = false; audioRef.current.play()?.catch(() => { }); setAutoplayBlocked(false) } catch (_) { } }}>Unmute</Button>
-                <Button className="bg-rose-600 text-white hover:bg-rose-700" onClick={skipRound} aria-label="Skip this round">Song's over :(</Button>
+                <Button className="bg-rose-600 text-white hover:bg-rose-700" onClick={skipRound} aria-label="Skip this round">Song's over / Ads :(</Button>
               </div>
 
               {autoplayBlocked && (
