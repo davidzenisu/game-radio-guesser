@@ -29,9 +29,10 @@ async function getSongYear(artist, track, logFn) {
   let allRecordings = []
   try {
     while (true) {
-      const url = `https://musicbrainz.org/ws/2/recording/?query=${encodeURIComponent(query)}&fmt=json&inc=releases&limit=${limit}&offset=${offset}`
-      if (logFn) logFn(` Fetching MusicBrainz URL: ${url}`)
-      const res = await fetch(url, { headers: { 'User-Agent': 'RadioYearScanner/1.0 (example@example.com)' } })
+      // Use our server-side proxy to avoid CORS and centralize UA/caching
+      const proxyUrl = `/api/musicbrainz?q=${encodeURIComponent(query)}&limit=${limit}&offset=${offset}`
+      if (logFn) logFn(` Fetching MusicBrainz via proxy: ${proxyUrl}`)
+      const res = await fetch(proxyUrl)
       if (!res.ok) break
       const data = await res.json()
       const recs = data.recordings || []
@@ -129,11 +130,12 @@ export default function Home() {
       if (!title) {
         const base = getIcecastMetadataUrl(s.url)
         if (base) {
-          log(` Fetching Icecast metadata from: ${base}`)
-          try {
-            const res = await fetch(base, { cache: 'no-store' })
+            const proxyUrl = `/api/icecast?url=${encodeURIComponent(s.url)}`
+            log(` Fetching Icecast metadata via proxy: ${proxyUrl}`)
+            try {
+              const res = await fetch(proxyUrl)
             if (res.ok) {
-              const json = await res.json()
+                const json = await res.json()
               const sources = json.icestats?.source || []
               const source = Array.isArray(sources) ? (sources.find(x => x.server_name === s.name) || sources[0]) : sources
               const fetchedTitle = source?.title || null
@@ -143,7 +145,7 @@ export default function Home() {
                 else log(`  Icecast title not in expected format: ${fetchedTitle}`)
               }
             } else {
-              log(`  Icecast metadata fetch failed: ${res.status}`)
+                log(`  Icecast metadata proxy fetch failed: ${res.status}`)
             }
           } catch (e) { log(`  Could not fetch station status for ${s.name || s.url}: ${e?.message || e}`) }
         }
