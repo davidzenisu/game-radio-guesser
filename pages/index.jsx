@@ -18,6 +18,7 @@ const DECADE_COLORS = {
   2010: 'bg-indigo-400 text-white hover:bg-indigo-600',
   2020: 'bg-violet-400 text-white hover:bg-violet-600',
 }
+const MAX_ROUNDS = 10
 
 function splitSongTitle(fullTitle) {
   const parts = fullTitle.split(' - ')
@@ -93,15 +94,8 @@ export default function Home() {
   const [stationsChecked, setStationsChecked] = useState(0)
   const [guess, setGuess] = useState('')
   // Initialize score with a stable default to avoid server/client hydration mismatch.
-  // Load persisted score from localStorage only on the client after mount.
   const [score, setScore] = useState({ points: 0, rounds: 0, correct: 0 })
 
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem('grg-score')
-      if (saved) setScore(JSON.parse(saved))
-    } catch (_) { }
-  }, [])
   const audioRef = useRef(null)
   const [isPlaying, setIsPlaying] = useState(false)
   const [autoplayBlocked, setAutoplayBlocked] = useState(false)
@@ -114,9 +108,32 @@ export default function Home() {
   // picking the same decade twice in a row.
   const lastDecadeRef = useRef(null)
 
-  useEffect(() => { try { localStorage.setItem('grg-score', JSON.stringify(score)) } catch (_) { } }, [score])
-
   const log = (t) => setLogs(l => [...l, String(t)])
+
+  // When we've reached the max rounds, pause audio and clear any active match
+  useEffect(() => {
+    if (score.rounds >= MAX_ROUNDS) {
+      try { audioRef.current?.pause() } catch (_) { }
+      setMatchAndRef(null)
+      setRunning(false)
+      log(`Reached ${MAX_ROUNDS} rounds — showing results`)
+    }
+  }, [score.rounds])
+
+  function restartGame() {
+    // Reset score, caches, logs and UI state so player can play again
+    setScore({ points: 0, rounds: 0, correct: 0 })
+    songCacheRef.current.clear()
+    lastDecadeRef.current = null
+    setLogs([])
+    setCollected([])
+    setMatchAndRef(null)
+    setGuess('')
+    setShowAnswer(false)
+    setIsPlaying(false)
+  }
+  // Results rendering is handled later (after all hooks) to avoid changing
+  // the hooks call order between renders.
 
   // helper to keep a mutable ref in sync with match state so long-running
   // async loops can read the current value without depending on React's
@@ -283,7 +300,33 @@ export default function Home() {
     window.addEventListener('click', handleUserGesture)
     return () => window.removeEventListener('click', handleUserGesture)
   }, [])
+  const finished = score.rounds >= MAX_ROUNDS
+  if (finished) {
+    const accuracy = score.rounds ? Math.round((score.correct / score.rounds) * 100) : 0
+    const cached = Array.from(songCacheRef.current.values())
+    return (
+      <main className="min-h-screen bg-slate-50 p-8">
+        <div className="max-w-4xl mx-auto">
+          <Card>
+            <h2 className="text-2xl font-semibold">Results</h2>
+            <p className="mt-3">Rounds: <strong>{score.rounds}/{MAX_ROUNDS}</strong></p>
+            <p className="mt-1">Points: <strong>{score.points}</strong></p>
+            <p className="mt-1">Correct: <strong>{score.correct}</strong> ({accuracy}%)</p>
+            <div className="mt-4">
+              <Button onClick={restartGame}>Play Again</Button>
+            </div>
+          </Card>
 
+          <section className="mt-6">
+            <h3 className="text-sm font-medium mb-2">Picked songs (this session)</h3>
+            <ul className="list-disc list-inside">
+              {cached.map((c, i) => <li key={i}>{c.artist} — {c.track} — {c.year} ({c.decade}s)</li>)}
+            </ul>
+          </section>
+        </div>
+      </main>
+    )
+  }
   return (
     <main className="min-h-screen bg-slate-50 p-8">
       <div className="max-w-4xl mx-auto">
@@ -294,7 +337,7 @@ export default function Home() {
 
         <div className="flex gap-4 items-center mb-4">
           <Button onClick={runScan} disabled={running || !!match}>{running ? 'Scanning...' : 'Start Round'}</Button>
-          <div className="ml-auto text-sm text-gray-700">Score: <strong>{score.points}</strong> · Rounds: {score.rounds} · Correct: {score.correct}
+          <div className="ml-auto text-sm text-gray-700">Score: <strong>{score.points}</strong> · Rounds: {score.rounds}/{MAX_ROUNDS} · Correct: {score.correct}
             <Button className="ml-3" variant="ghost" onClick={resetScore}>Reset</Button>
           </div>
         </div>
@@ -303,75 +346,49 @@ export default function Home() {
 
         {match && (
           <div className="flex flex-col gap-6 mt-6">
-          <Card>
-            <h2 className="text-lg font-medium">Controls</h2>
-            <div className="mt-4">
-              <audio ref={audioRef} src={match.station?.url} preload="none" controls style={{ display: 'none' }} />
-              <div className="flex gap-3">
-                <Button onClick={() => { try { audioRef.current.muted = false; audioRef.current.play()?.catch(() => { }); setAutoplayBlocked(false) } catch (_) { } }}>Unmute</Button>
-                <Button className="bg-rose-600 text-white hover:bg-rose-700" onClick={skipRound} aria-label="Skip this round">Song's over / Ads :(</Button>
+            <Card>
+              <h2 className="text-lg font-medium">Controls</h2>
+              <div className="mt-4">
+                <audio ref={audioRef} src={match.station?.url} preload="none" controls style={{ display: 'none' }} />
+                <div className="flex gap-3">
+                  <Button onClick={() => { try { audioRef.current.muted = false; audioRef.current.play()?.catch(() => { }); setAutoplayBlocked(false) } catch (_) { } }}>Unmute</Button>
+                  <Button className="bg-rose-600 text-white hover:bg-rose-700" onClick={skipRound} aria-label="Skip this round">Song's over / Ads :(</Button>
+                </div>
               </div>
-
-              {autoplayBlocked && (
-                <div style={{ marginTop: 6, color: '#b33' }}>
-                  Autoplay was blocked by the browser or will start muted. Click anywhere or press Unmute to enable sound.
-                </div>
-              )}
-
-              {autoplayBlocked && showUnmutePrompt && (
-                <div className="mt-3 p-3 border rounded bg-white shadow">
-                  <div className="font-medium">Click to enable sound</div>
-                  <div className="mt-2">
-                    <Button onClick={() => {
-                      const el = audioRef.current
-                      if (!el) return
-                      try { el.muted = false; el.play()?.then(() => setIsPlaying(true)).catch(() => { }) } catch (_) { }
-                      setAutoplayBlocked(false); setShowUnmutePrompt(false); log('Unmute prompt clicked')
-                    }}>Enable sound</Button>
+            </Card>
+            <Card>
+              <h2 className="text-lg font-medium">Answer</h2>
+              <div className="mt-4">
+                {!showAnswer ? (
+                  <div className="mt-4 flex flex-col gap-3">
+                    <div className="flex flex-wrap gap-2">
+                      {TARGET_DECADES.map((d) => {
+                        const colorClass = DECADE_COLORS[d] || 'bg-sky-600 text-white hover:bg-sky-700'
+                        const disabledClass = showAnswer ? 'opacity-60 cursor-not-allowed' : ''
+                        return (
+                          <Button key={d} onClick={() => handleDecadeGuess(d)} className={`${colorClass} ${disabledClass}`} disabled={showAnswer}>{d}s</Button>
+                        )
+                      })}
+                    </div>
                   </div>
-                </div>
-              )}
-            </div>
-          </Card>
-          <Card>
-            <h2 className="text-lg font-medium">Answer</h2>
-            <div className="mt-4">
-              {!showAnswer ? (
-                <div className="mt-4 flex flex-col gap-3">
-                  <div className="flex flex-wrap gap-2">
-                    {TARGET_DECADES.map((d) => {
-                      const colorClass = DECADE_COLORS[d] || 'bg-sky-600 text-white hover:bg-sky-700'
-                      // When the answer is revealed, visually disable the buttons.
-                      const disabledClass = showAnswer ? 'opacity-60 cursor-not-allowed' : ''
-                      return (
-                        <Button
-                          key={d}
-                          onClick={() => handleDecadeGuess(d)}
-                          className={`${colorClass} ${disabledClass}`}
-                          disabled={showAnswer}
-                        >
-                          {d}s
-                        </Button>
-                      )
-                    })}
+                ) : (
+                  <div className="mt-4 flex items-center gap-3">
+                    <p className="mr-4">Answer: <strong>{match.artist} — {match.track} — {match.year}</strong> ({Math.floor(parseInt(match.year) / 10) * 10}s)</p>
+                    <Button onClick={nextRound}>Next Round</Button>
                   </div>
-                </div>
-              ) : (
-                <div className="mt-4 flex items-center gap-3">
-                  <p className="mr-4">Answer: <strong>{match.artist} — {match.track} — {match.year}</strong> ({Math.floor(parseInt(match.year) / 10) * 10}s)</p>
-                  <Button onClick={nextRound}>Next Round</Button>
-                </div>
-              )}
-            </div>
-          </Card>
+                )}
+              </div>
+            </Card>
           </div>
         )}
+
         {!IS_PROD && (
           <section className="mt-6">
             <h3 className="text-sm font-medium mb-2">Logs</h3>
             <div className="bg-black text-white p-3 rounded h-40 overflow-auto font-mono text-xs">{logs.map((l, i) => <div key={i}>{l}</div>)}</div>
           </section>
         )}
+
         {!IS_PROD && (
           <section className="mt-6">
             <h3 className="text-sm font-medium mb-2">Collected songs</h3>
