@@ -23,7 +23,7 @@ function getIcecastMetadataUrl(stationUrl) {
 
 async function getSongYear(artist, track, logFn) {
   // Use stricter MusicBrainz query filters (status:official, primarytype:album)
-  const query = `recording:${track} AND artist:${artist}`
+  const query = `recording:${track} AND artist:${artist}  AND status:official`
   const limit = 100
   let offset = 0
   let allRecordings = []
@@ -59,7 +59,8 @@ async function getSongYear(artist, track, logFn) {
     const filteredRecordings = allRecordings.filter(r => (typeof r.score === 'number' ? r.score : 0) >= 75)
     if (logFn) logFn(`  MusicBrainz total filtered recordings: ${filteredRecordings.length}`)
     const flat = filteredRecordings.flatMap(r => r.releases || [])
-    const withDate = flat.filter(r => r.date)
+    const officialReleases = flat.filter(r => r.status === 'Official')
+    const withDate = officialReleases.filter(r => r.date)
     withDate.sort((a, b) => a.date.localeCompare(b.date))
     const d = withDate[0]?.date
     return d ? d.substring(0, 4) : null
@@ -130,12 +131,12 @@ export default function Home() {
       if (!title) {
         const base = getIcecastMetadataUrl(s.url)
         if (base) {
-            const proxyUrl = `/api/icecast?url=${encodeURIComponent(s.url)}`
-            log(` Fetching Icecast metadata via proxy: ${proxyUrl}`)
-            try {
-              const res = await fetch(proxyUrl)
+          const proxyUrl = `/api/icecast?url=${encodeURIComponent(s.url)}`
+          log(` Fetching Icecast metadata via proxy: ${proxyUrl}`)
+          try {
+            const res = await fetch(proxyUrl)
             if (res.ok) {
-                const json = await res.json()
+              const json = await res.json()
               const sources = json.icestats?.source || []
               const source = Array.isArray(sources) ? (sources.find(x => x.server_name === s.name) || sources[0]) : sources
               const fetchedTitle = source?.title || null
@@ -145,7 +146,7 @@ export default function Home() {
                 else log(`  Icecast title not in expected format: ${fetchedTitle}`)
               }
             } else {
-                log(`  Icecast metadata proxy fetch failed: ${res.status}`)
+              log(`  Icecast metadata proxy fetch failed: ${res.status}`)
             }
           } catch (e) { log(`  Could not fetch station status for ${s.name || s.url}: ${e?.message || e}`) }
         }
@@ -196,14 +197,14 @@ export default function Home() {
   }
 
   function nextRound() {
-  try { audioRef.current?.pause() } catch (_) { }
-  setMatchAndRef(null)
-  setGuess('')
-  setShowAnswer(false)
-  setIsPlaying(false)
-  // now it's safe to start the next scan immediately because matchRef
-  // was cleared synchronously above
-  try { runScan() } catch (_) { }
+    try { audioRef.current?.pause() } catch (_) { }
+    setMatchAndRef(null)
+    setGuess('')
+    setShowAnswer(false)
+    setIsPlaying(false)
+    // now it's safe to start the next scan immediately because matchRef
+    // was cleared synchronously above
+    try { runScan() } catch (_) { }
   }
 
   function resetScore() { setScore({ points: 0, rounds: 0, correct: 0 }); }
