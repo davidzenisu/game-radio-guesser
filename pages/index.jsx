@@ -23,16 +23,40 @@ function getIcecastMetadataUrl(stationUrl) {
 
 async function getSongYear(artist, track, logFn) {
   // Use stricter MusicBrainz query filters (status:official, primarytype:album)
-  const query = `recording:${track} AND artist:${artist} AND status:official AND primarytype:album`
-  const url = `https://musicbrainz.org/ws/2/recording/?query=${encodeURIComponent(query)}&fmt=json&inc=releases&limit=100`
-  if (logFn) logFn(` Fetching MusicBrainz URL: ${url}`)
+  const query = `recording:${track} AND artist:${artist}`
+  const limit = 100
+  let offset = 0
+  let allRecordings = []
   try {
-    const res = await fetch(url, { headers: { 'User-Agent': 'RadioYearScanner/1.0 (example@example.com)' } })
-    if (!res.ok) return null
-    const data = await res.json()
+    while (true) {
+      const url = `https://musicbrainz.org/ws/2/recording/?query=${encodeURIComponent(query)}&fmt=json&inc=releases&limit=${limit}&offset=${offset}`
+      if (logFn) logFn(` Fetching MusicBrainz URL: ${url}`)
+      const res = await fetch(url, { headers: { 'User-Agent': 'RadioYearScanner/1.0 (example@example.com)' } })
+      if (!res.ok) break
+      const data = await res.json()
+      const recs = data.recordings || []
+      allRecordings = allRecordings.concat(recs)
+
+      // Determine if we should fetch the next page: only if there are more
+      // results (data.count) and the lowest score in this page is >=75.
+      const count = typeof data.count === 'number' ? data.count : allRecordings.length
+      const scores = recs.map(r => typeof r.score === 'number' ? r.score : 0)
+      const minScore = scores.length ? Math.min(...scores) : 0
+      if (logFn) logFn(`  MusicBrainz page offset=${offset} returned ${recs.length} recordings (min score: ${minScore}) count=${count}`)
+
+      // If there are more total results beyond this page and the lowest score
+      // on this page is >=75, fetch the next page and continue; otherwise stop.
+      if (count > offset + limit && minScore >= 75) {
+        offset += limit
+        // loop to fetch next page
+        continue
+      }
+      break
+    }
+
     // prefer recordings with decent score and gather releases
-    const filteredRecordings = data.recordings?.filter(r => r.score >= 75) || []
-    if (logFn) logFn(`  MusicBrainz returned ${filteredRecordings.length} matching recordings.`)
+    const filteredRecordings = allRecordings.filter(r => (typeof r.score === 'number' ? r.score : 0) >= 75)
+    if (logFn) logFn(`  MusicBrainz total filtered recordings: ${filteredRecordings.length}`)
     const flat = filteredRecordings.flatMap(r => r.releases || [])
     const withDate = flat.filter(r => r.date)
     withDate.sort((a, b) => a.date.localeCompare(b.date))
