@@ -20,6 +20,32 @@ const DECADE_COLORS = {
 }
 const MAX_ROUNDS = 10
 
+// Small animated playing indicator (three bars). Kept local and lightweight using
+// styled-jsx so we don't have to touch global CSS.
+function PlayingIndicator({ label = 'Playing' }) {
+  // Use an inline SVG to avoid CSS specificity issues and ensure the
+  // indicator is visible regardless of surrounding styles. The SVG
+  // includes three rects animated via CSS transform.
+  return (
+    <span className="playing" role="img" aria-label={label} title={label}>
+      <svg width="28" height="18" viewBox="0 0 28 18" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <rect className="bar" x="2" y="2" width="6" height="14" rx="1" />
+        <rect className="bar" x="11" y="2" width="6" height="14" rx="1" />
+        <rect className="bar" x="20" y="2" width="6" height="14" rx="1" />
+      </svg>
+      <style jsx>{`
+        .playing{ display:inline-flex; align-items:center; margin-left:8px }
+        .playing svg { display:block }
+        .playing .bar { transform-origin: center bottom; fill: #10b981; transform: scaleY(0.35); animation: eq 900ms infinite ease-in-out }
+        .playing .bar:nth-child(1){ animation-delay: 0ms }
+        .playing .bar:nth-child(2){ animation-delay: 150ms }
+        .playing .bar:nth-child(3){ animation-delay: 300ms }
+        @keyframes eq { 0% { transform: scaleY(0.25) } 50% { transform: scaleY(1) } 100% { transform: scaleY(0.25) } }
+      `}</style>
+    </span>
+  )
+}
+
 function splitSongTitle(fullTitle) {
   const parts = fullTitle.split(' - ')
   if (parts.length >= 2) return { artist: parts[0].trim(), title: parts.slice(1).join(' - ').trim() }
@@ -98,6 +124,7 @@ export default function Home() {
 
   const audioRef = useRef(null)
   const [isPlaying, setIsPlaying] = useState(false)
+  const [audioMuted, setAudioMuted] = useState(true)
   const [autoplayBlocked, setAutoplayBlocked] = useState(false)
   const [showAnswer, setShowAnswer] = useState(false)
   const [showUnmutePrompt, setShowUnmutePrompt] = useState(false)
@@ -151,7 +178,7 @@ export default function Home() {
       const r = await fetch(url)
       stations = await r.json()
       // Randomize the station order so we don't always pick the same high-clickcount stations
-      function shuffle(arr) { for (let i = arr.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [arr[i], arr[j]] = [arr[j], arr[i]] } return arr }
+      function shuffle(arr) { for (let i = arr.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1));[arr[i], arr[j]] = [arr[j], arr[i]] } return arr }
       stations = shuffle(stations)
       setStationsTotal(stations.length)
       log(`Loaded ${stations.length} stations.`)
@@ -203,15 +230,15 @@ export default function Home() {
       const yr = parseInt(year)
       if (Number.isNaN(yr)) continue
       const dec = Math.floor(yr / 10) * 10
-  // If the last round used this same decade, skip it so we don't repeat
-  if (lastDecadeRef.current === dec) { log(` Decade ${dec}s was the last round's decade; skipping to avoid repeat.`); continue }
+      // If the last round used this same decade, skip it so we don't repeat
+      if (lastDecadeRef.current === dec) { log(` Decade ${dec}s was the last round's decade; skipping to avoid repeat.`); continue }
 
-  // Store in the in-memory cache and choose this as the match
-  const entry = { artist, track, year, decade: dec }
-  songCacheRef.current.set(normalized, entry)
-  // Remember this decade as the last used decade for the next round
-  lastDecadeRef.current = dec
-  log(`Match found: ${artist} - ${track} (${year}) at station ${s.name || s.url} — storing in cache and setting last-decade to ${dec}s`)
+      // Store in the in-memory cache and choose this as the match
+      const entry = { artist, track, year, decade: dec }
+      songCacheRef.current.set(normalized, entry)
+      // Remember this decade as the last used decade for the next round
+      lastDecadeRef.current = dec
+      log(`Match found: ${artist} - ${track} (${year}) at station ${s.name || s.url} — storing in cache and setting last-decade to ${dec}s`)
       setMatchAndRef({ artist, track, year, station: s })
       break
     }
@@ -280,6 +307,7 @@ export default function Home() {
     if (!el) return
     try {
       el.muted = true
+      setAudioMuted(true)
       const p = el.play()
       if (p && typeof p.then === 'function') {
         p.then(() => { setIsPlaying(true); setAutoplayBlocked(false); log('Autoplay started (muted)') }).catch(err => { setAutoplayBlocked(true); setShowUnmutePrompt(true); log(`Autoplay blocked: ${err?.message || err}`) })
@@ -300,6 +328,28 @@ export default function Home() {
     window.addEventListener('click', handleUserGesture)
     return () => window.removeEventListener('click', handleUserGesture)
   }, [])
+
+  // Keep React state in sync with the underlying audio element by
+  // listening to its events (play/pause/volumechange). This ensures the
+  // UI updates when the user unmutes via the control or other gestures.
+  useEffect(() => {
+    const el = audioRef.current
+    if (!el) return
+    function onPlay() { setIsPlaying(true) }
+    function onPause() { setIsPlaying(false) }
+    function onVolumeChange() { setAudioMuted(!!el.muted) }
+    el.addEventListener('play', onPlay)
+    el.addEventListener('pause', onPause)
+    el.addEventListener('volumechange', onVolumeChange)
+    // initialize state from element
+    setAudioMuted(!!el.muted)
+    setIsPlaying(!el.paused)
+    return () => {
+      el.removeEventListener('play', onPlay)
+      el.removeEventListener('pause', onPause)
+      el.removeEventListener('volumechange', onVolumeChange)
+    }
+  }, [match])
   const finished = score.rounds >= MAX_ROUNDS
   if (finished) {
     const accuracy = score.rounds ? Math.round((score.correct / score.rounds) * 100) : 0
@@ -350,8 +400,22 @@ export default function Home() {
               <h2 className="text-lg font-medium">Controls</h2>
               <div className="mt-4">
                 <audio ref={audioRef} src={match.station?.url} preload="none" controls style={{ display: 'none' }} />
-                <div className="flex gap-3">
-                  <Button onClick={() => { try { audioRef.current.muted = false; audioRef.current.play()?.catch(() => { }); setAutoplayBlocked(false) } catch (_) { } }}>Unmute</Button>
+                <div className="flex gap-3 flex-col items-center">
+                  {isPlaying && audioMuted &&
+                    <Button onClick={() => {
+                      try {
+                        const el = audioRef.current
+                        if (!el) return
+                        el.muted = false
+                        setAudioMuted(false)
+                        const p = el.play()
+                        if (p && typeof p.then === 'function') p.then(() => setIsPlaying(true)).catch(() => { })
+                        else setIsPlaying(!el.paused)
+                        setAutoplayBlocked(false)
+                      } catch (_) { }
+                    }}>PLAY</Button>
+                  }
+                  {isPlaying && !audioMuted && <PlayingIndicator />}
                   <Button className="bg-rose-600 text-white hover:bg-rose-700" onClick={skipRound} aria-label="Skip this round">Song's over / Ads :(</Button>
                 </div>
               </div>
