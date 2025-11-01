@@ -45,7 +45,7 @@ async function getSongYear(artist, track, logFn) {
 }
 
 export default function Home() {
-  const IS_PROD = true
+  const IS_PROD = process.env.NODE_ENV === 'production'
   const [logs, setLogs] = useState([])
   const [running, setRunning] = useState(false)
   const [match, setMatch] = useState(null)
